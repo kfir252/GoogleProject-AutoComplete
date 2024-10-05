@@ -3,6 +3,9 @@ import re
  
 DATA_PATH = 'Data'
 
+'''
+    clean lines from the filesystem to be saved in a clean form
+'''
 def line_cleaner(line:str):
     sentence = re.sub(' +', ' ', line)
     if sentence and sentence[0] == ' ':
@@ -13,6 +16,9 @@ def line_cleaner(line:str):
         sentence = sentence[:-1:]
     return sentence
 
+'''
+    run on all the files and set the in the dataset to be used in time efficient way
+'''
 def load_all_files(path):
     # Walk through the directory and process text files
     line_contains = dict()
@@ -43,6 +49,8 @@ def main():
 
     while True:
         Google_search = input('Google: ').strip()
+        
+        # search for the least popular word
         least_popular_word_containers = None
         for word in Google_search.split(' '):
             word = word.lower()
@@ -54,15 +62,20 @@ def main():
             
                 if len(line_contains[word]) < len(least_popular_word_containers):
                     least_popular_word_containers = line_contains[word]
-            
-
+        
+        
+        # search for all the lines that contains all the words from the search string
         fully_containing_lines = []
         if least_popular_word_containers:
             for containing_line in least_popular_word_containers:
                 if Google_search.lower() in containing_line[0]:
                     fully_containing_lines.append(containing_line)
 
-        print(fully_containing_lines)
+        for i in range(min(len(fully_containing_lines),5)):
+            print(fully_containing_lines[i], len(Google_search)*2)
+
+        
+
         # for line in fully_containing_lines:
         #     print(line, 2 * len(Google_search))
     
