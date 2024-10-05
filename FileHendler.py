@@ -46,9 +46,16 @@ def load_all_files(path):
 
 def main():
     line_contains = load_all_files(DATA_PATH)
-
     while True:
+        unknown_words = 0
         Google_search = input('Google: ').strip()
+
+
+
+
+
+
+
         
         # search for the least popular word
         least_popular_word_containers = None
@@ -59,11 +66,14 @@ def main():
             if word in line_contains:
                 if least_popular_word_containers is None:
                     least_popular_word_containers = line_contains[word]
-            
+
                 if len(line_contains[word]) < len(least_popular_word_containers):
                     least_popular_word_containers = line_contains[word]
-        
-        
+            else:
+                unknown_words += 1
+            
+            print(unknown_words)
+            
         # search for all the lines that contains all the words from the search string
         fully_containing_lines = []
         if least_popular_word_containers:
@@ -75,6 +85,15 @@ def main():
             print(fully_containing_lines[i], len(Google_search)*2)
 
         
+        #if we see only 1 word that none popular -> try only to change this word don't bather with the full senses
+
+
+
+        #if we see only 0 words that none popular -> generate from the end to the start with changes to the sentence
+        if min(len(fully_containing_lines),5) > 5:
+            pass
+            #generate changes..
+            
 
         # for line in fully_containing_lines:
         #     print(line, 2 * len(Google_search))
