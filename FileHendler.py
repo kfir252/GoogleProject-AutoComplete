@@ -3,9 +3,7 @@ import re
  
 DATA_PATH = 'Data'
 
-'''
-    clean lines from the filesystem to be saved in a clean form
-'''
+
 def line_cleaner(line:str):
     sentence = re.sub(' +', ' ', line)
     if sentence and sentence[0] == ' ':
@@ -16,9 +14,6 @@ def line_cleaner(line:str):
         sentence = sentence[:-1:]
     return sentence
 
-'''
-    run on all the files and set the in the dataset to be used in time efficient way
-'''
 def load_all_files(path):
     # Walk through the directory and process text files
     line_contains = dict()
@@ -44,45 +39,70 @@ def load_all_files(path):
                     pass
     return line_contains
 
+def find_least_popular_word(Google_search, line_contains):
+    # search for the least popular word
+    unknown_words = 0
+    least_popular_word_containers = None
+    for word in Google_search.split(' '):
+        word = word.lower()
+        
+        #setup the first to be the least_popular_word
+        if word in line_contains:
+            if least_popular_word_containers is None:
+                least_popular_word_containers = line_contains[word]
+
+            if len(line_contains[word]) < len(least_popular_word_containers):
+                least_popular_word_containers = line_contains[word]
+        else:
+            unknown_words += 1
+    return least_popular_word_containers, unknown_words
+
+def find_fully_containing_lines(Google_search, line_list):
+    fully_containing_lines = []
+    if line_list:
+        for containing_line in line_list:
+            if Google_search.lower() in containing_line[0]:
+                fully_containing_lines.append(containing_line)
+
+    return fully_containing_lines
+
+        
 def main():
     line_contains = load_all_files(DATA_PATH)
     while True:
-        unknown_words = 0
-        Google_search = input('Google: ').strip()
+        # get input(str)
+        Google_search = input('Google: ').strip()                                       
 
-
-
-
-
-
-
+        # get lines-options to search on
+        least_popular_word_containers, unknown_words_count = find_least_popular_word(Google_search, line_contains)
         
-        # search for the least popular word
-        least_popular_word_containers = None
-        for word in Google_search.split(' '):
-            word = word.lower()
-            
-            #setup the first to be the least_popular_word
-            if word in line_contains:
-                if least_popular_word_containers is None:
-                    least_popular_word_containers = line_contains[word]
+        # validation
+        if unknown_words_count > 1:
+            print('too many unknown words used.')
+            continue
+        
+        # search on the lines-options the input(str)
+        fully_containing_lines = find_fully_containing_lines(Google_search, least_popular_word_containers)
 
-                if len(line_contains[word]) < len(least_popular_word_containers):
-                    least_popular_word_containers = line_contains[word]
-            else:
-                unknown_words += 1
-            
-            print(unknown_words)
-            
-        # search for all the lines that contains all the words from the search string
-        fully_containing_lines = []
-        if least_popular_word_containers:
-            for containing_line in least_popular_word_containers:
-                if Google_search.lower() in containing_line[0]:
-                    fully_containing_lines.append(containing_line)
 
+        # print results
         for i in range(min(len(fully_containing_lines),5)):
             print(fully_containing_lines[i], len(Google_search)*2)
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         
         #if we see only 1 word that none popular -> try only to change this word don't bather with the full senses
