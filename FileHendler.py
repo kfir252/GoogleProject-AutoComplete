@@ -1,122 +1,145 @@
 import os
 import re
- 
+from rapidfuzz import process, fuzz
+from collections import defaultdict
+
 DATA_PATH = 'Data'
 
-
-def line_cleaner(line:str):
+# Cleans up a single line by removing extra spaces, trimming, etc.
+def line_cleaner(line: str):
     sentence = re.sub(' +', ' ', line)
-    if sentence and sentence[0] == ' ':
-        sentence = sentence[1::]
-    if sentence and sentence.endswith('\n'):
-        sentence = sentence[:-2:]
-    if sentence and sentence[-1] == ' ':
-        sentence = sentence[:-1:]
+    sentence = sentence.strip()  # Strip leading and trailing spaces
     return sentence
 
+# Preprocess the line_contains dictionary by grouping words by their length
+def preprocess_line_contains(line_contains):
+    length_dict = defaultdict(list)
+    for word in line_contains.keys():
+        length_dict[len(word)].append(word)
+    return length_dict
+
+# Loads and processes all text files from the specified directory
 def load_all_files(path):
-    # Walk through the directory and process text files
     line_contains = dict()
-    
+
     for root, dirs, files in os.walk(path):
         for file_name in files:
-            if file_name.endswith('.txt'):  # Only process text files
-                full_path = os.path.join(root, file_name)  # Join root and file name to get the full path
-                try:
-                    with open(full_path, 'r') as file:
-                        line_offset = 0
-                        for line in file:
-                            sentence = line_cleaner(line)
-                            if not sentence:
-                                continue
-                            for word in sentence.split(' '):
-                                if word.lower() in line_contains:
-                                    line_contains[word.lower()].append((sentence, file_name, line_offset))
-                                else:
-                                    line_contains[word.lower()] = [(sentence, file_name, line_offset)]
-                            line_offset += 1
-                except:
-                    pass
+            if file_name.endswith('.txt'):
+                full_path = os.path.join(root, file_name)
+                process_file(full_path, line_contains)
+
     return line_contains
 
+# Tries opening a file with multiple encodings until one succeeds
+def try_open_file_with_encoding(file_path):
+    encodings = ['utf-8', 'latin-1', 'utf-16', 'cp1252']
+    for encoding in encodings:
+        try:
+            return open(file_path, 'r', encoding=encoding)
+        except (UnicodeDecodeError, FileNotFoundError) as e:
+            print(f"Failed to open {file_path} with encoding {encoding}: {e}")
+    return None
+
+# Processes each file and populates the line_contains dictionary
+def process_file(full_path, line_contains):
+    file = try_open_file_with_encoding(full_path)
+    if file:
+        try:
+            line_offset = 0
+            for line in file:
+                sentence = line_cleaner(line)
+                if not sentence:
+                    continue
+                update_word_dict(sentence, full_path, line_offset, line_contains)
+                line_offset += 1
+        except Exception as e:
+            print(f"Error processing file {full_path}: {e}")
+        finally:
+            file.close()
+
+# Updates the word dictionary with the entire sentence and its metadata
+def update_word_dict(sentence, file_name, line_offset, line_contains):
+    words = sentence.split(' ')
+    for word in words:
+        word = word.lower()
+        if word in line_contains:
+            line_contains[word].append((sentence, file_name, line_offset))
+        else:
+            line_contains[word] = [(sentence, file_name, line_offset)]
+
+# Finds exact matches for the search query in line_contains
 def find_least_popular_word(Google_search, line_contains):
-    # search for the least popular word
-    unknown_words = 0
-    least_popular_word_containers = None
+    unknown_words = []
+    found_words = []
+    word_matches = {}
+    
     for word in Google_search.split(' '):
         word = word.lower()
-        
-        #setup the first to be the least_popular_word
         if word in line_contains:
-            if least_popular_word_containers is None:
-                least_popular_word_containers = line_contains[word]
-
-            if len(line_contains[word]) < len(least_popular_word_containers):
-                least_popular_word_containers = line_contains[word]
+            found_words.append(word)
+            word_matches[word] = line_contains[word]
         else:
-            unknown_words += 1
-    return least_popular_word_containers, unknown_words
+            unknown_words.append(word)
+    
+    return word_matches, unknown_words
 
-def find_fully_containing_lines(Google_search, line_list):
+# Find similar words based on Levenshtein distance, prioritizing exact length matches
+def find_similar_word(word, length_dict):
+    similar_length_words = length_dict[len(word)] + length_dict[len(word) - 1] + length_dict[len(word) + 1]
+    return process.extract(word, similar_length_words, scorer=fuzz.ratio, limit=3)
+
+# Scoring function based on match quality and length
+def calculate_score(Google_search, matched_sentence):
+    max_score = len(Google_search) * 2  # Maximum score is twice the length of the search phrase
+    match_ratio = fuzz.ratio(Google_search, matched_sentence) / 100
+    score = max_score * match_ratio
+    return round(score, 2)
+
+# Finds the lines that fully contain the search query or similar words
+def find_fully_containing_lines(word_matches, line_contains, unknown_words, length_dict, Google_search):
     fully_containing_lines = []
-    if line_list:
-        for containing_line in line_list:
-            if Google_search.lower() in containing_line[0]:
-                fully_containing_lines.append(containing_line)
+    
+    if word_matches:
+        first_word = next(iter(word_matches))
+        candidates = word_matches[first_word]
+
+        for candidate in candidates:
+            sentence = candidate[0].lower()
+
+            if all(word in sentence for word in word_matches.keys()):
+                if unknown_words:
+                    for unknown_word in unknown_words:
+                        similar_words = find_similar_word(unknown_word, length_dict)
+                        if any(similar_word[0] in sentence for similar_word in similar_words):
+                            score = calculate_score(Google_search, sentence)
+                            fully_containing_lines.append((candidate[0], candidate[1], candidate[2], score))
+                            break
+                else:
+                    score = calculate_score(Google_search, sentence)
+                    fully_containing_lines.append((candidate[0], candidate[1], candidate[2], score))
 
     return fully_containing_lines
 
-        
+# Prints the results with a limit of 5 lines
+def print_results(fully_containing_lines):
+    for i in range(min(len(fully_containing_lines), 5)):
+        print(f"Line: {fully_containing_lines[i][0]}, File: {fully_containing_lines[i][1]}, Offset: {fully_containing_lines[i][2]}, Score: {fully_containing_lines[i][3]}")
+
+# Main function orchestrates the search process
 def main():
     line_contains = load_all_files(DATA_PATH)
+    length_dict = preprocess_line_contains(line_contains)
     while True:
-        # get input(str)
-        Google_search = input('Google: ').strip()                                       
+        Google_search = input('Google: ').strip()
+        Google_search = re.sub(' +', ' ', Google_search.strip())
 
-        # get lines-options to search on
-        least_popular_word_containers, unknown_words_count = find_least_popular_word(Google_search, line_contains)
-        
-        # validation
-        if unknown_words_count > 1:
-            print('too many unknown words used.')
-            continue
-        
-        # search on the lines-options the input(str)
-        fully_containing_lines = find_fully_containing_lines(Google_search, least_popular_word_containers)
+        word_matches, unknown_words = find_least_popular_word(Google_search, line_contains)
 
+        fully_containing_lines = find_fully_containing_lines(word_matches, line_contains, unknown_words, length_dict, Google_search)
+        if fully_containing_lines:
+            print_results(fully_containing_lines)
+        else:
+            print('No results found.')
 
-        # print results
-        for i in range(min(len(fully_containing_lines),5)):
-            print(fully_containing_lines[i], len(Google_search)*2)
-
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
-        #if we see only 1 word that none popular -> try only to change this word don't bather with the full senses
-
-
-
-        #if we see only 0 words that none popular -> generate from the end to the start with changes to the sentence
-        if min(len(fully_containing_lines),5) > 5:
-            pass
-            #generate changes..
-            
-
-        # for line in fully_containing_lines:
-        #     print(line, 2 * len(Google_search))
-    
 if __name__ == '__main__':
     main()
