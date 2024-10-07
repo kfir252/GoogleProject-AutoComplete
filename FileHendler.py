@@ -42,8 +42,7 @@ def try_open_file_with_encoding(file_path):
 
 # Processes each file and populates the line_contains dictionary
 def process_file(full_path, line_contains):
-    file = try_open_file_with_encoding(full_path)
-    if file:
+    if file := try_open_file_with_encoding(full_path):
         try:
             line_offset = 0
             for line in file:
