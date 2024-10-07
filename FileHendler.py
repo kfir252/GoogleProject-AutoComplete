@@ -132,9 +132,8 @@ def main():
     line_contains = load_all_files(DATA_PATH)
     length_dict = preprocess_line_contains(line_contains)
     while True:
-        Google_search = input('Google: ').strip()
-        Google_search = re.sub(' +', ' ', Google_search.strip())
-
+        Google_search = line_cleaner(input('Google: '))
+        
         word_matches, unknown_words = find_least_popular_word(Google_search, line_contains)
 
         fully_containing_lines = find_fully_containing_lines(word_matches, line_contains, unknown_words, length_dict, Google_search)
