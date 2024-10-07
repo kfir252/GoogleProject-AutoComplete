@@ -117,7 +117,9 @@ def find_fully_containing_lines(word_matches, line_contains, unknown_words, leng
                 else:
                     score = calculate_score(Google_search, sentence)
                     fully_containing_lines.append((candidate[0], candidate[1], candidate[2], score))
-
+    
+    # Sort the lines by score in descending order
+    fully_containing_lines.sort(key=lambda x: x[3], reverse=True)
     return fully_containing_lines
 
 # Prints the results with a limit of 5 lines
